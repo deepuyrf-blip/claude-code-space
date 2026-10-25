@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # Container entrypoint: prep dirs, restore provider key from env (Space secrets),
-# skip Claude Code onboarding, start supervisord.
+# generate the Caddyfile (optional basic auth), skip Claude Code onboarding,
+# start supervisord.
 set -e
 
 HOME_DIR="${HOME:-/home/agent}"
-mkdir -p "$HOME_DIR/workspace" "$HOME_DIR/.claude" "$HOME_DIR/.cloudcli" /tmp 2>/dev/null || true
+mkdir -p "$HOME_DIR/workspace" "$HOME_DIR/.claude" "$HOME_DIR/.cloudcli" "$HOME_DIR/.caddy" /tmp 2>/dev/null || true
 
 # ---- restore provider config from env so it survives Space restarts ----------
-# Set these as HF Space secrets/variables (Settings -> Variables and secrets):
-#   CCW_KEY         (secret)  your provider API key
-#   CCW_BASE_URL    (variable) e.g. https://radoxai.com
-#   CCW_PROVIDER    (variable, optional) e.g. radoxai / custom
-#   CCW_EXTRA_KEYS  (variable, optional) comma-separated extra keys for rotation
+# HF Space secrets/variables (Settings -> Variables and secrets):
+#   CCW_KEY         (secret)    your provider API key
+#   CCW_BASE_URL    (variable)  e.g. https://radoxai.com
+#   CCW_PROVIDER    (variable)  optional, e.g. radoxai / custom
+#   CCW_EXTRA_KEYS  (variable)  optional, comma-separated extra keys (rotation)
 if [ -n "${CCW_KEY:-}" ]; then
   python3 - "${CCW_KEY}" "${CCW_BASE_URL:-}" "${CCW_PROVIDER:-custom}" "${CCW_EXTRA_KEYS:-}" <<'PY' || true
 import json, os, sys
@@ -48,6 +49,49 @@ with open(state_path, "w") as f:
 print("[start] provider key restored from env (CCW_KEY)")
 PY
 fi
+
+# ---- generate the Caddyfile (single port, optional basic auth) ---------------
+#   CCW_USER / CCW_PASS  (secrets) -> gate the whole app behind HTTP basic auth
+python3 - "$HOME_DIR/.caddy" "${APP_PORT:-7860}" "${CCW_USER:-admin}" "${CCW_PASS:-}" <<'PY' || true
+import os, subprocess, sys
+caddy_dir, port, user, pw = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+auth = ""
+if pw:
+    try:
+        h = subprocess.run(["caddy", "hash-password", "--plaintext", pw],
+                           capture_output=True, text=True, timeout=30).stdout.strip()
+        if h:
+            auth = "\tbasic_auth {\n\t\t%s %s\n\t}\n\n" % (user or "admin", h)
+    except Exception:
+        auth = ""
+cfg = """{
+	admin off
+	auto_https off
+}
+
+:%s {
+	encode zstd gzip
+
+%shandle /admin* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle /gw* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3001 {
+			flush_interval -1
+		}
+	}
+}
+""" % (port, auth)
+os.makedirs(caddy_dir, exist_ok=True)
+with open(os.path.join(caddy_dir, "Caddyfile"), "w") as f:
+    f.write(cfg)
+print("[start] Caddyfile written (basic_auth=%s)" % bool(pw))
+PY
 
 # Skip Claude Code's interactive first-run setup (only when no config exists yet)
 if [ ! -f "$HOME_DIR/.claude.json" ]; then
