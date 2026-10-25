@@ -1,0 +1,26 @@
+# Single-port reverse proxy:
+#   /admin*  -> the key manager (provider/key switcher + rotating gateway)
+#   /gw*     -> the key manager's rotating gateway (used internally by Claude)
+#   /*       -> the CloudCLI web UI
+{
+	admin off
+	auto_https off
+}
+
+:{$APP_PORT} {
+	encode zstd gzip
+
+	handle /admin* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle /gw* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3001 {
+			flush_interval -1
+		}
+	}
+}
