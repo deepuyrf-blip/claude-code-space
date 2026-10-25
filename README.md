@@ -31,9 +31,19 @@ Railway, Render, Fly.io, or any single-container host.
 3. The Space builds and serves on `https://<user>-<space>.hf.space`.
 4. Open it → set your provider + API key at **`/admin`** → start chatting.
 
-> **Free Spaces are ephemeral** — your provider keys/config are lost when the
-> Space restarts. Add **Persistent Storage** (paid) and mount it, or just re-save
-> your key in `/admin` after a restart.
+> **Free Spaces are ephemeral** — the filesystem resets on restart. To make your
+> provider key **survive restarts for free**, set it as a Space **secret**
+> (Settings → Variables and secrets) — the container restores it on boot:
+>
+> | Name | Kind | Example |
+> |---|---|---|
+> | `CCW_KEY` | secret | your provider API key |
+> | `CCW_BASE_URL` | variable | `https://radoxai.com` |
+> | `CCW_PROVIDER` | variable | `radoxai` / `custom` (optional) |
+> | `CCW_EXTRA_KEYS` | variable | `key2,key3` (optional, for rotation) |
+>
+> (CloudCLI's own UI password still resets — set it again, or use Persistent
+> Storage (paid) for full persistence.)
 
 ## Deploy on a VPS / Railway / Render / Fly
 
