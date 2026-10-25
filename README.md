@@ -41,9 +41,14 @@ Railway, Render, Fly.io, or any single-container host.
 > | `CCW_BASE_URL` | variable | `https://radoxai.com` |
 > | `CCW_PROVIDER` | variable | `radoxai` / `custom` (optional) |
 > | `CCW_EXTRA_KEYS` | variable | `key2,key3` (optional, for rotation) |
+> | `CCW_USER` | variable | basic-auth username (optional) |
+> | `CCW_PASS` | secret | basic-auth password (optional) |
 >
-> (CloudCLI's own UI password still resets — set it again, or use Persistent
-> Storage (paid) for full persistence.)
+> **No more "Create Account" every restart:** the container runs CloudCLI with
+> `IS_PLATFORM=true`, so it assumes external auth and skips the local
+> account/onboarding step. Protect the app with **Caddy basic auth** instead —
+> set `CCW_USER` + `CCW_PASS` (they persist across restarts). For full
+> persistence of the workspace too, use Persistent Storage (paid).
 
 ## Deploy on a VPS / Railway / Render / Fly
 
