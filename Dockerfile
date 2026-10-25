@@ -25,6 +25,14 @@ RUN python3 -m pip install --user --break-system-packages graphifyy 2>/dev/null 
     || python3 -m pip install --user graphifyy 2>/dev/null \
     || echo "graphify skipped"
 
+# ---- other agent CLIs (Codex / OpenCode / Cursor) - each needs its own login ----
+RUN npm install -g @openai/codex opencode-ai \
+        --fetch-retries=5 --fetch-timeout=600000 --no-audit --no-fund \
+    && { command -v codex >/dev/null 2>&1 && echo "codex ok" || echo "codex missing"; } \
+    && { command -v opencode >/dev/null 2>&1 && echo "opencode ok" || echo "opencode missing"; }
+RUN curl -fsSL https://cursor.com/install | bash || echo "cursor-agent skipped"
+ENV PATH=/home/agent/.local/bin:${PATH}
+
 # app files
 USER root
 COPY app.py /opt/keymgr/app.py
